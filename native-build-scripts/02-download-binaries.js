@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const { https } = require('follow-redirects');
 const path = require('path');
+const crypto = require('crypto');
 const unzip = require('extract-zip');
 
 (async function() {
@@ -9,11 +10,12 @@ const unzip = require('extract-zip');
   const binPath = path.resolve(__dirname, '../bin');
   const binaries = await fs.readJson(path.resolve(__dirname, '../bin.json'));
   const dir = path.join(binPath, platform);
-  const downloadPath = binaries[platform];
+  const downloadPath = binaries[platform]['url'];
+  const downloadHash = binaries[platform]['hash'];
   await fs.emptyDir(dir);
 
   if(!downloadPath) {
-    console.log(`No binary download path found in bin.json for platform ${platform}`);
+    console.log(`Error: No binary download path found in bin.json for platform ${platform}`);
     return;
   }
 
@@ -37,6 +39,14 @@ const unzip = require('extract-zip');
         }
       });
   });
+
+  const buff = fs.readFileSync(zipFilePath);
+  const hash = crypto.createHash("sha256").update(buff).digest("hex");
+  if (downloadHash != hash) {
+    console.log(`Error: Hashes don't match ${hash} (expected ${downloadHash})`);
+    await fs.emptyDir(dir);
+    return;
+  }
 
   if(path.extname(zipFileName) === '.zip') {
     console.log(`Unzipping ${zipFilePath}`);
